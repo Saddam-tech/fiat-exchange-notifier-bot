@@ -1,0 +1,16 @@
+{
+  "name": "fiat-exchanges-notifier-bot",
+  "version": "1.0.0",
+  "description": "Currency exchange notifier telegram bot",
+  "main": "index.js",
+  "repository": "https://github.com/Saddam-tech/fiat-exchange-notifier-bot.git",
+  "author": "Saddam-tech",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.64.0",
+    "sqlite3": "^5.1.7"
+  }
+}
