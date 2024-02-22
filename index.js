@@ -6,12 +6,15 @@ const cron = require("node-cron");
 const { provider } = require("./request");
 const { insert, query_params, update } = require("./db/queries");
 const { TABLES, COLUMNS } = require("./db/tables");
-const { db } = require("./db/connect");
+const dayjs = require("dayjs");
+require("dayjs/locale/sk");
 
 async function makeApiCall(pair) {
   try {
-    const response = await provider.get(`/${pair}`);
-    console.log({ response });
+    const response = await provider.get(`/${pair.toLowerCase()}`);
+    let { result } = response?.data;
+    console.log({ result });
+    return result;
   } catch (err) {
     console.log(err);
   }
@@ -19,12 +22,17 @@ async function makeApiCall(pair) {
 
 async function main() {
   try {
-    const supported_exrates = ["USD/KRW", "USD/UZS"];
+    const supported_exrates = ["USDKRW", "USDUZS"];
     const interval_options = [
       ["Once a day!"],
       ["Twice a day!"],
       ["Three times a day!"],
     ];
+    const map_interval_to_hours = {
+      "Once a day!": 23,
+      "Twice a day!": 12,
+      "Three times a day!": 8,
+    };
     telegram_bot.onText(/\/start/, async (msg) => {
       telegram_bot.sendMessage(
         msg.chat.id,
@@ -40,7 +48,7 @@ async function main() {
       let user = await query_params(TABLES.USER, COLUMNS.id, id);
       console.log({ user });
       if (user.length > 0) {
-        // update logic
+        // updating logic
         update(
           TABLES.USER,
           [COLUMNS.firstname, COLUMNS.lastname, COLUMNS.username, COLUMNS.date],
@@ -85,24 +93,31 @@ async function main() {
           }
         );
       }
-      if (msg.text.indexOf(interval_options[0]) === 0) {
-        console.log({ msg });
+      if (
+        msg.text.indexOf(interval_options[0]) === 0 ||
+        msg.text.indexOf(interval_options[1]) === 0 ||
+        msg.text.indexOf(interval_options[2]) === 0
+      ) {
         let { text } = msg;
         update(TABLES.USER, [COLUMNS.interval], [text], msg.chat.id);
         let user = await query_params(TABLES.USER, COLUMNS.id, msg.chat.id);
-        console.log({ LATEST_QUERY_USER: user });
-        let { pair } = user[0];
-        cron.schedule("* * * * *", () => makeApiCall(pair));
+        let { pair, interval } = user[0];
+        cron.schedule(`* */${map_interval_to_hours[interval]} * * *`, () =>
+          makeApiCall(pair)
+        );
         telegram_bot.sendMessage(
           msg.chat.id,
           "Notification has been setup! Type 'interval' to change your preference!"
         );
-        // db.close((err) => {
-        //   if (err) {
-        //     console.log(err);
-        //   }
-        //   console.log("Closing the db connection...");
-        // });
+        const { symbol, price, description, time } = await makeApiCall(pair);
+        telegram_bot.sendMessage(
+          msg.chat.id,
+          `Symbol: ${symbol} 
+Price: ${price} 
+Description: ${description} 
+Time: ${dayjs(time)}
+          `
+        );
       }
     });
   } catch (err) {
