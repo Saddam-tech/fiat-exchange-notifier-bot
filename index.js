@@ -7,8 +7,13 @@ const { provider } = require("./request");
 const { insert, query_params, update } = require("./db/queries");
 const { TABLES, COLUMNS } = require("./db/tables");
 const dayjs = require("dayjs");
-require("dayjs/locale/sk");
+const { MESSAGES } = require("./util/messages");
+var utc = require("dayjs/plugin/utc");
+var timezone = require("dayjs/plugin/timezone"); // dependent on utc plugin
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.tz.guess();
 async function makeApiCall(pair) {
   try {
     const response = await provider.get(`/${pair.toLowerCase()}`);
@@ -36,7 +41,7 @@ async function main() {
     telegram_bot.onText(/\/start/, async (msg) => {
       telegram_bot.sendMessage(
         msg.chat.id,
-        `Welcome ${msg.chat.first_name} 😃`
+        MESSAGES.WELCOME(msg.chat.first_name)
       );
       let {
         id,
@@ -58,7 +63,7 @@ async function main() {
       } else {
         insert(TABLES.USER, [id, firstname, lastname, username, date]);
       }
-      telegram_bot.sendMessage(id, "Choose your exchange rate pair", {
+      telegram_bot.sendMessage(id, MESSAGES.CHOOSE_RATE, {
         reply_markup: {
           keyboard: [[supported_exrates[0]], [supported_exrates[1]]],
         },
@@ -69,29 +74,21 @@ async function main() {
         console.log({ msg });
         let { text } = msg;
         update(TABLES.USER, [COLUMNS.pair], [text], msg.chat.id);
-        telegram_bot.sendMessage(
-          msg.chat.id,
-          "How often do you want to get notified?",
-          {
-            reply_markup: {
-              keyboard: interval_options,
-            },
-          }
-        );
+        telegram_bot.sendMessage(msg.chat.id, MESSAGES.HOW_OFTEN, {
+          reply_markup: {
+            keyboard: interval_options,
+          },
+        });
       }
       if (msg.text.indexOf(supported_exrates[1]) === 0) {
         console.log({ msg });
         let { text } = msg;
         update(TABLES.USER, [COLUMNS.pair], [text], msg.chat.id);
-        telegram_bot.sendMessage(
-          msg.chat.id,
-          "How often do you want to get notified?",
-          {
-            reply_markup: {
-              keyboard: interval_options,
-            },
-          }
-        );
+        telegram_bot.sendMessage(msg.chat.id, MESSAGES.HOW_OFTEN, {
+          reply_markup: {
+            keyboard: interval_options,
+          },
+        });
       }
       if (
         msg.text.indexOf(interval_options[0]) === 0 ||
@@ -102,22 +99,62 @@ async function main() {
         update(TABLES.USER, [COLUMNS.interval], [text], msg.chat.id);
         let user = await query_params(TABLES.USER, COLUMNS.id, msg.chat.id);
         let { pair, interval } = user[0];
-        cron.schedule(`* */${map_interval_to_hours[interval]} * * *`, () =>
-          makeApiCall(pair)
+        cron.schedule(
+          `* */${map_interval_to_hours[interval]} * * *`,
+          async () => {
+            const { symbol, price, description, time } = await makeApiCall(
+              pair
+            );
+            telegram_bot.sendMessage(
+              msg.chat.id,
+              MESSAGES.EXCHANGE_RATE_QUERY(
+                symbol,
+                price,
+                description,
+                dayjs(time).format("YYYY-MM-DD hh:mm:ss a")
+              )
+            );
+          }
         );
-        telegram_bot.sendMessage(
-          msg.chat.id,
-          "Notification has been setup! Type 'interval' to change your preference!"
-        );
+        telegram_bot.sendMessage(msg.chat.id, MESSAGES.NOTI_SETUP);
         const { symbol, price, description, time } = await makeApiCall(pair);
         telegram_bot.sendMessage(
           msg.chat.id,
-          `Symbol: ${symbol} 
-Price: ${price} 
-Description: ${description} 
-Time: ${dayjs(time)}
-          `
+          MESSAGES.EXCHANGE_RATE_QUERY(
+            symbol,
+            price,
+            description,
+            dayjs(time).format("YYYY-MM-DD hh:mm:ss a")
+          )
         );
+      }
+      if (msg.text.indexOf(MESSAGES.INTERVAL) === 0) {
+        telegram_bot.sendMessage(msg.chat.id, MESSAGES.HOW_OFTEN, {
+          reply_markup: {
+            keyboard: interval_options,
+          },
+        });
+      }
+      if (msg.text.indexOf(MESSAGES.EXCHANGE) === 0) {
+        let user = await query_params(TABLES.USER, COLUMNS.id, msg.chat.id);
+        let { pair } = user[0];
+        const { symbol, price, description, time } = await makeApiCall(pair);
+        telegram_bot.sendMessage(
+          msg.chat.id,
+          MESSAGES.EXCHANGE_RATE_QUERY(
+            symbol,
+            price,
+            description,
+            dayjs(time).format("YYYY-MM-DD hh:mm:ss a")
+          )
+        );
+      }
+      if (msg.text.indexOf(MESSAGES.SETUP_EXCHANGE) === 0) {
+        telegram_bot.sendMessage(msg.chat.id, MESSAGES.CHOOSE_RATE, {
+          reply_markup: {
+            keyboard: [[supported_exrates[0]], [supported_exrates[1]]],
+          },
+        });
       }
     });
   } catch (err) {
