@@ -10,6 +10,7 @@ const dayjs = require("dayjs");
 const { MESSAGES } = require("./util/messages");
 var utc = require("dayjs/plugin/utc");
 var timezone = require("dayjs/plugin/timezone"); // dependent on utc plugin
+const { db } = require("./db/connect");
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -100,13 +101,13 @@ async function main() {
         update(TABLES.USER, [COLUMNS.interval], [text], msg.chat.id);
         let user = await query_params(TABLES.USER, COLUMNS.id, msg.chat.id);
         let { pair, interval } = user[0];
-        console.log({ interval_time: map_interval_to_hours[interval] });
         cron.schedule(
           `1 */${map_interval_to_hours[interval]} * * *`,
           async () => {
             const { symbol, price, description, time } = await makeApiCall(
               pair
             );
+            console.log({ MSG: msg });
             telegram_bot.sendMessage(
               msg.chat.id,
               MESSAGES.EXCHANGE_RATE_QUERY(

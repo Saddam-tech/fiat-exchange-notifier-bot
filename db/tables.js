@@ -1,5 +1,5 @@
 const TABLES = {
-  USER: "user",
+  USER: "users",
 };
 
 const COLUMNS = {
