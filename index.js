@@ -14,6 +14,7 @@ var timezone = require("dayjs/plugin/timezone"); // dependent on utc plugin
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.tz.guess();
+const timeformat = "YYYY-MM-DD hh:mm:ss a";
 async function makeApiCall(pair) {
   try {
     const response = await provider.get(`/${pair.toLowerCase()}`);
@@ -99,8 +100,9 @@ async function main() {
         update(TABLES.USER, [COLUMNS.interval], [text], msg.chat.id);
         let user = await query_params(TABLES.USER, COLUMNS.id, msg.chat.id);
         let { pair, interval } = user[0];
+        console.log({ interval_time: map_interval_to_hours[interval] });
         cron.schedule(
-          `* */${map_interval_to_hours[interval]} * * *`,
+          `1 */${map_interval_to_hours[interval]} * * *`,
           async () => {
             const { symbol, price, description, time } = await makeApiCall(
               pair
@@ -111,7 +113,7 @@ async function main() {
                 symbol,
                 price,
                 description,
-                dayjs(time).format("YYYY-MM-DD hh:mm:ss a")
+                dayjs(time).format(timeformat)
               )
             );
           }
@@ -124,7 +126,7 @@ async function main() {
             symbol,
             price,
             description,
-            dayjs(time).format("YYYY-MM-DD hh:mm:ss a")
+            dayjs(time).format(timeformat)
           )
         );
       }
@@ -145,7 +147,7 @@ async function main() {
             symbol,
             price,
             description,
-            dayjs(time).format("YYYY-MM-DD hh:mm:ss a")
+            dayjs(time).format(timeformat)
           )
         );
       }
